@@ -1,3 +1,3 @@
-module github.com/turnon/go-bookmarks
+module github.com/turnon/gobookmarks
 
 go 1.12

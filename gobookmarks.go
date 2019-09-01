@@ -1,10 +1,7 @@
-package main
+package gobookmarks
 
 import (
 	"bufio"
-	"encoding/json"
-	"flag"
-	"fmt"
 	"os"
 	"regexp"
 	"strconv"
@@ -29,28 +26,16 @@ var (
 	listEnd = regexp.MustCompile(`^\s*</DL><p>$`)
 )
 
-func main() {
-	path := flag.String("f", "nowhere", "bookmark file location")
-	flag.Parse()
-
-	var bm bookmark
-	bm.read(*path)
-
-	bytes, err := json.Marshal(&bm)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(string(bytes))
-}
-
-func (bm *bookmark) read(path string) {
+func Read(path string) bookmark {
 	file, err := os.Open(path)
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
 
+	var bm bookmark
 	bm.parse(file)
+	return bm
 }
 
 func (bm *bookmark) parse(file *os.File) {
