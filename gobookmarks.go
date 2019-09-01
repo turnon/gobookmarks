@@ -2,18 +2,19 @@ package gobookmarks
 
 import (
 	"bufio"
+	"encoding/json"
 	"os"
 	"regexp"
 	"strconv"
 	"time"
 )
 
-type bookmark struct {
+type Bookmark struct {
 	dirStack []string
-	Items    []item
+	Items    []Item
 }
 
-type item struct {
+type Item struct {
 	Href    string   `json:"href"`
 	AddDate string   `json:"add_date"`
 	Title   string   `json:"title"`
@@ -26,19 +27,23 @@ var (
 	listEnd = regexp.MustCompile(`^\s*</DL><p>$`)
 )
 
-func Read(path string) bookmark {
+func Read(path string) Bookmark {
 	file, err := os.Open(path)
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
 
-	var bm bookmark
+	var bm Bookmark
 	bm.parse(file)
 	return bm
 }
 
-func (bm *bookmark) parse(file *os.File) {
+func (bm *Bookmark) JSON() ([]byte, error) {
+	return json.Marshal(&bm)
+}
+
+func (bm *Bookmark) parse(file *os.File) {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 
@@ -62,7 +67,7 @@ func (bm *bookmark) parse(file *os.File) {
 	}
 }
 
-func (bm *bookmark) matchItem(line string) bool {
+func (bm *Bookmark) matchItem(line string) bool {
 	m := itemRe.FindStringSubmatch(line)
 	if len(m) == 0 {
 		return false
@@ -77,7 +82,7 @@ func (bm *bookmark) matchItem(line string) bool {
 	dirs := make([]string, len(bm.dirStack))
 	copy(dirs, bm.dirStack)
 
-	i := item{m[1], date.Format(time.RFC3339), m[3], dirs}
+	i := Item{m[1], date.Format(time.RFC3339), m[3], dirs}
 	bm.Items = append(bm.Items, i)
 
 	return true
