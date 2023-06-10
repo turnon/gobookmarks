@@ -1,25 +1,28 @@
-package gobookmarks
+package bookmark
 
 import (
 	"bufio"
-	"encoding/json"
 	"os"
 	"regexp"
 	"strconv"
 	"time"
 )
 
-type Bookmark struct {
+// bookmarkWalker 缓存书签目录栈
+type bookmarkWalker struct {
 	dirStack []string
-	Items    []Item
 }
 
+// Item 书签条目
 type Item struct {
-	Href    string   `json:"href"`
-	AddDate string   `json:"add_date"`
-	Title   string   `json:"title"`
-	Dirs    []string `json:"dirs"`
+	Name string   `json:"name"`
+	Dirs []string `json:"dirs"`
+	Href string   `json:"href"`
+	Time string   `json:"time"`
 }
+
+// itemHanlder 条目处理器
+type itemHanlder func(*Item) error
 
 var (
 	dirRe   = regexp.MustCompile(`^\s*<DT><H3 .*>(.*)</H3>$`)
@@ -27,63 +30,74 @@ var (
 	listEnd = regexp.MustCompile(`^\s*</DL><p>$`)
 )
 
-func Read(path string) Bookmark {
+func Scan(path string, hanlder itemHanlder) error {
 	file, err := os.Open(path)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer file.Close()
 
-	var bm Bookmark
-	bm.parse(file)
-	return bm
+	bw := &bookmarkWalker{}
+	return bw.walk(file, hanlder)
 }
 
-func (bm *Bookmark) JSON() ([]byte, error) {
-	return json.Marshal(&bm)
-}
-
-func (bm *Bookmark) parse(file *os.File) {
+func (bm *bookmarkWalker) walk(file *os.File, handler itemHanlder) error {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if bm.matchItem(line) {
+		// 条目
+		item, err := bm.matchItem(line)
+		if err != nil {
+			return err
+		}
+		if item != nil {
+			if err = handler(item); err != nil {
+				return err
+			}
 			continue
 		}
 
+		// 进入目录
 		matchDir := dirRe.FindStringSubmatch(line)
 		if len(matchDir) > 0 {
 			bm.dirStack = append(bm.dirStack, matchDir[1])
 			continue
 		}
 
+		// 离开目录
 		if listEnd.MatchString(line) && len(bm.dirStack) > 1 {
 			bm.dirStack = bm.dirStack[:len(bm.dirStack)-1]
 			continue
 		}
 	}
+
+	return nil
 }
 
-func (bm *Bookmark) matchItem(line string) bool {
+func (bm *bookmarkWalker) matchItem(line string) (*Item, error) {
 	m := itemRe.FindStringSubmatch(line)
 	if len(m) == 0 {
-		return false
+		return nil, nil
 	}
 
 	seconds, err := strconv.ParseInt(m[2], 0, 64)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	date := time.Unix(seconds, 0)
+	timeStr := time.Unix(seconds, 0).Format(time.RFC3339)
 
 	dirs := make([]string, len(bm.dirStack))
 	copy(dirs, bm.dirStack)
 
-	i := Item{m[1], date.Format(time.RFC3339), m[3], dirs}
-	bm.Items = append(bm.Items, i)
+	i := &Item{
+		Name: m[3],
+		Dirs: dirs,
+		Href: m[1],
+		Time: timeStr,
+	}
 
-	return true
+	return i, nil
 }
