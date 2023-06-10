@@ -2,18 +2,17 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
+	"os"
 
 	"github.com/turnon/gobookmarks/bookmark"
 )
 
 func main() {
-	bookmarkFile := flag.String("file", "", "bookmark file")
-	flag.Parse()
-
-	if err := bookmark.Scan(*bookmarkFile, printItem); err != nil {
-		panic(err)
+	for _, bookmarkFile := range os.Args[1:] {
+		if err := bookmark.Scan(bookmarkFile, printItem); err != nil {
+			panic(err)
+		}
 	}
 }
 
